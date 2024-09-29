@@ -38,6 +38,16 @@ class LuaTypes(object):
         '\\0': 0,
     }
 
+    # проверка на целочисленный тип данных
+    @classmethod
+    def is_int(cls, type):
+        return type in [cls.int, cls.char]
+
+    # проверка на тип данных с плавающей точкой
+    @classmethod
+    def is_float(cls, type):
+        return type in [cls.float]
+    
     # приведение значения определённого типа к другому типу
     @classmethod
     def cast_type(cls, builder, target_type, value, ctx):
