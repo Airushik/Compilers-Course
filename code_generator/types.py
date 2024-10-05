@@ -81,6 +81,7 @@ class LuaTypes(object):
             # если целевой тип - указатель
             elif type(target_type) == ir.PointerType:
                 # преобразование value в указатель с помощью inttoptr
+                print('inttoptr!!!!!!!!!!')
                 return builder.inttoptr(value, target_type)
 
         # если тип value - с плавающей точкой
