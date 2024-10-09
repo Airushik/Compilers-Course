@@ -45,4 +45,6 @@ class SymbolTable:
         self.__level -= 1
 
     def names(self):
-        return list(self.__tables[self.__level].keys())
+        print(self.__tables[self.__level])
+        names = list(self.__tables[self.__level].keys())
+        return names
