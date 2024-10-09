@@ -99,6 +99,16 @@ class LuaVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by LuaParser#funcchunk.
+    def visitFuncchunk(self, ctx:LuaParser.FuncchunkContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by LuaParser#funcblock.
+    def visitFuncblock(self, ctx:LuaParser.FuncblockContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by LuaParser#parlist1.
     def visitParlist1(self, ctx:LuaParser.Parlist1Context):
         return self.visitChildren(ctx)

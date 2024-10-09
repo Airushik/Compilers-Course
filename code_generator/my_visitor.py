@@ -48,7 +48,7 @@ class LuaGenerator(LuaVisitor):
             rhs, rhs_type = self.visit(ctx.explist1())
             print('rhd', rhs, rhs_type)
             
-            if lhs_ptr is None:
+            if lhs_ptr is None or lhs.type != rhs_type: #some wierd stuff!!
                 self.symbol_table[name] = self.builder.alloca(rhs_type)
                 lhs_ptr = self.symbol_table[name]
                 converted_rhs = rhs
@@ -196,6 +196,94 @@ class LuaGenerator(LuaVisitor):
         elif ctx.children[0].getText() == 'for' and ctx.exp() is not None and len(ctx.exp()) > 0:
             #to do
             pass
+        
+        #если объявление функции 
+        elif ctx.children[0].getText() == 'function':
+            print('!!!!!!!!!!!', ctx.funcname())
+            func_name = self.visit(ctx.funcname())
+            params, funcblock = self.visit(ctx.funcbody())
+            if params is not None:
+                vars = self.visit(params)
+            else:
+                vars = []
+
+            higher_builder = self.builder
+            name_prefix = self.builder.block.name
+
+            #содзаем временный билдер для временной функции, так как еще не знаем возвращаемый тип 
+            temp_function = ir.Function(ir.Module(name=func_name), ir.FunctionType(ir.IntType(32), [ir.IntType() for i in range(len(vars))]), name=func_name)
+            self.builder = ir.IRBuilder(temp_function.append_basic_block(name=name_prefix + '.' + func_name))
+            self.symbol_table.enter_scope()
+
+            old_breack_block = self.break_block
+            self.break_block = None
+
+            for arg_name, llvm_arg in zip(vars, temp_function.args):
+                self.symbol_table[arg_name] = llvm_arg
+
+            for name in self.symbol_table.names():
+                var = self.symbol_table[name]
+                new_var = self.builder.alloca(var.type.pointee)
+                self.symbol_table[name] = new_var
+                val = self.builder.load(var)
+                self.builder.store(new_var, val)
+        
+            ret_type = self.visit(funcblock)
+            
+            real_function = ir.Function(self.module, ir.FunctionType(ret_type, [ir.IntType() for i in range(len(vars))]), name=func_name)
+            real_function.blocks = temp_function.blocks
+
+            self.symbol_table[func_name] = real_function
+
+            self.break_block = old_breack_block
+            self.builder = higher_builder
+
+            self.symbol_table.exit_scope()
+
+    def visitFuncname(self, ctx: LuaParser.FuncnameContext):
+        name = ctx.NAME()[0].getText()
+        return name
+    
+    def visitFuncbody(self, ctx: LuaParser.FuncbodyContext):
+        return ctx.parlist1(), ctx.funcblock()
+
+    def visitParlist1(self, ctx: LuaParser.Parlist1Context):
+        if ctx.namelist() is not None and len(ctx.namelist()) > 0:
+            names = self.visit(ctx.namelist()[0])
+        return names
+    
+    def visitNamelist(self, ctx: LuaParser.NamelistContext):
+        names_nodes = ctx.NAME()
+        names = list()
+        for node in names_nodes:
+            names.append(self.visit(node))
+        return names 
+
+    def visitLaststat(self, ctx: LuaParser.LaststatContext):
+        if ctx.children[0].getText() == 'break':
+            if self.break_block is None:
+                raise SemanticError(msg="Break can not be used here!", ctx=ctx)
+            self.builder.branch(self.break_block)
+        elif ctx.children[0].getText() == 'return':
+            exp_val, exp_type = ctx.visit(ctx.explist1[0])
+            self.builder.ret(exp_val)
+            return exp_type
+        
+    def visitFuncchunk(self, ctx: LuaParser.FuncchunkContext):
+        for child in ctx.stat():
+            self.visit(child)
+        if ctx.laststat() is not None and len(ctx.laststat()) > 0:
+            ret_type = self.visit(ctx.laststat()[0])
+            return ret_type
+        else:
+            self.builder.ret_void()
+            return ir.VoidType()
+        
+    def visitFuncblock(self, ctx: LuaParser.FuncblockContext):
+        if ctx.funcchunk() is not None:
+            ret_type = self.visit(ctx.funcchunk())
+            return ret_type
+        return ret_type
 
     def visitVarlist1(self, ctx: LuaParser.Varlist1Context):
         #to do

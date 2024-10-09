@@ -170,6 +170,24 @@ class LuaListener(ParseTreeListener):
         pass
 
 
+    # Enter a parse tree produced by LuaParser#funcchunk.
+    def enterFuncchunk(self, ctx:LuaParser.FuncchunkContext):
+        pass
+
+    # Exit a parse tree produced by LuaParser#funcchunk.
+    def exitFuncchunk(self, ctx:LuaParser.FuncchunkContext):
+        pass
+
+
+    # Enter a parse tree produced by LuaParser#funcblock.
+    def enterFuncblock(self, ctx:LuaParser.FuncblockContext):
+        pass
+
+    # Exit a parse tree produced by LuaParser#funcblock.
+    def exitFuncblock(self, ctx:LuaParser.FuncblockContext):
+        pass
+
+
     # Enter a parse tree produced by LuaParser#parlist1.
     def enterParlist1(self, ctx:LuaParser.Parlist1Context):
         pass

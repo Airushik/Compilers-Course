@@ -16,10 +16,9 @@ main:
   %".10" = alloca i1
   store i1 0, i1* %".10"
   %".12" = load double, double* %".2"
-  %".13" = sitofp i32 3 to double
-  store double %".13", double* %".2"
-  %".15" = load double, double* %".2"
-  %".16" = sitofp i32 4 to double
-  store double %".16", double* %".2"
+  %".13" = alloca i32
+  store i32 3, i32* %".13"
+  %".15" = load i32, i32* %".13"
+  store i32 4, i32* %".13"
   ret i32 0
 }

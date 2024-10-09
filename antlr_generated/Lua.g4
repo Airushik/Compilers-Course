@@ -26,7 +26,6 @@ funcname : NAME ('.' NAME)* (':' NAME)? ;
 
 varlist1 : var (',' var)*;
 
-
 namelist : NAME (',' NAME)*;
 
 explist1 : (exp ',')* exp;
@@ -49,7 +48,11 @@ args :  '(' (explist1)? ')' | tableconstructor | string ;
 
 function : 'function' funcbody;
 
-funcbody : '(' (parlist1)? ')' block 'end';
+funcbody : '(' (parlist1)? ')' funcblock 'end';
+
+funcchunk : (stat (';')?)* (laststat (';')?)?;
+
+funcblock : funcchunk;
 
 parlist1 : namelist (',' '...')? | '...';
 

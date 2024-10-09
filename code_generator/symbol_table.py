@@ -23,8 +23,6 @@ class SymbolTable:
     # установка значения символа по ключу
     # * с проверкой повторного определения символа на текущем уровне
     def __setitem__(self, key, value):
-        if key in self.__tables[self.__level]:
-            raise RedefinitionError(key)
         self.__tables[self.__level][key] = value
 
     # проверка наличия символа в таблицах символов на разных уровнях области видимости
@@ -45,3 +43,6 @@ class SymbolTable:
             return
         self.__tables.pop(-1)
         self.__level -= 1
+
+    def names(self):
+        return list(self.__tables[self.__level].keys())
