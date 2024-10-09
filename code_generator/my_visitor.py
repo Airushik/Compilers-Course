@@ -47,9 +47,9 @@ class LuaGenerator(LuaVisitor):
             print('name', name, type(name))
             
             # посещение правила explist
-            rhs, rhs_type = self.visit(ctx.explist1())
-            print('rhd', rhs, rhs_type)
-            
+            explist = self.visit(ctx.explist1())
+            rhs, rhs_type = explist[0]
+
             if lhs_ptr is None or lhs_ptr.type.pointee != rhs_type: #some wierd stuff!!
                 self.symbol_table[name] = self.builder.alloca(rhs_type)
                 lhs_ptr = self.symbol_table[name]
@@ -242,12 +242,14 @@ class LuaGenerator(LuaVisitor):
             real_function = ir.Function(self.module, ir.FunctionType(ret_type, [ir.IntType(32) for i in range(len(vars))]), name=func_name)
             real_function.blocks = temp_function.blocks
 
-            self.symbol_table[func_name] = real_function
+            self.symbol_table.set_global(func_name, real_function)
 
             self.break_block = old_breack_block
             self.builder = higher_builder
 
             self.symbol_table.exit_scope()
+        elif match_rule(ctx.children[0], LuaParser.RULE_functioncall):
+            self.visit(ctx.functioncall())
 
     def visitFuncname(self, ctx: LuaParser.FuncnameContext):
         name = ctx.NAME()[0].getText()
@@ -277,7 +279,8 @@ class LuaGenerator(LuaVisitor):
                 raise SemanticError(msg="Break can not be used here!", ctx=ctx)
             self.builder.branch(self.break_block)
         elif ctx.children[0].getText() == 'return':
-            exp_val, exp_type = self.visit(ctx.explist1())
+            exps = self.visit(ctx.explist1())
+            exp_val, exp_type = exps[0]
             self.builder.ret(exp_val)
             return exp_type
         
@@ -306,15 +309,19 @@ class LuaGenerator(LuaVisitor):
         if ctx.NAME() is not None:
             name = ctx.NAME().getText()
             var = None
+            print(self.symbol_table.names())
             if name in self.symbol_table:
                 var = self.symbol_table[name]
             return var, name
     
     def visitExplist1(self, ctx: LuaParser.Explist1Context):
         print(len(ctx.exp()))
-        #to do
-        exp_val, exp_type = self.visit(ctx.exp()[0])
-        return exp_val, exp_type
+        exps = ctx.exp()
+        exp_list = []
+        for exp in exps:
+            exp_val, exp_type = self.visit(ctx.exp()[0])
+            exp_list.append((exp_val, exp_type))
+        return exp_list
     
     def visitExp(self, ctx: LuaParser.ExpContext):
         print('2342342342',ctx.children[0].getText())
@@ -422,10 +429,30 @@ class LuaGenerator(LuaVisitor):
         val, type = self.visit(ctx.varOrExp())
         return val, type
 
+    def visitFunctioncall(self, ctx: LuaParser.FunctioncallContext):
+        function, _ = self.visit(ctx.varOrExp())
+        args = self.visit(ctx.nameAndArgs()[0])
+        converted_args = [LuaTypes.cast_type(self.builder, value=arg[0], target_type=ir.IntType(32), ctx=ctx)
+                                  for arg in args]
+        self.builder.call(function, converted_args)
+
+    def visitNameAndArgs(self, ctx: LuaParser.NameAndArgsContext):
+        args = self.visitArgs(ctx.args())
+        return args
+    
+    def visitArgs(self, ctx: LuaParser.ArgsContext):
+        if ctx.explist1() is not None:
+            args = self.visit(ctx.explist1())
+        return args
+
     def visitVarOrExp(self, ctx: LuaParser.VarOrExpContext):
         if ctx.var() is not None:
             var, _ = self.visit(ctx.var())
-            val = self.builder.load(var)
+            print('varorexp!!!!!!!!!!!!!!', var)
+            if hasattr(var, 'return_type'):
+                val = var
+            else:
+                val = self.builder.load(var)
             type = val.type
         if ctx.exp() is not None:
             val, type = self.visit(ctx.exp())

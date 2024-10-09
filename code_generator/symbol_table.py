@@ -48,3 +48,7 @@ class SymbolTable:
         print(self.__tables[self.__level])
         names = list(self.__tables[self.__level].keys())
         return names
+    
+    def set_global(self, key, value):
+        self.__tables[0][key] = value
+
