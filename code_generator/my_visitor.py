@@ -41,6 +41,7 @@ class LuaGenerator(LuaVisitor):
         print('Stat')
         print('vars available', self.symbol_table.names())
         
+        #если присвоение глобальной переменной
         if match_rule(ctx.children[0], LuaParser.RULE_varlist1):
             # посещение правила varlist1
             lhs_ptr, name = self.visit(ctx.varlist1())
@@ -248,6 +249,8 @@ class LuaGenerator(LuaVisitor):
             self.builder = higher_builder
 
             self.symbol_table.exit_scope()
+        
+        #если вызов функции
         elif match_rule(ctx.children[0], LuaParser.RULE_functioncall):
             self.visit(ctx.functioncall())
 
@@ -423,6 +426,7 @@ class LuaGenerator(LuaVisitor):
                         val = self.builder.fcmp_ordered(cmpop=op, lhs=val, rhs=binop_converted)
                         print('fcmp',val)
                         type = val.type
+            
         return val, type
 
     def visitPrefixexp(self, ctx: LuaParser.PrefixexpContext):
@@ -470,6 +474,12 @@ class LuaGenerator(LuaVisitor):
             val = ctx.EXP().getText() 
             print('EXP', val)
             const_value = LuaTypes.get_const_from_str(cls=LuaTypes, luatype=LuaTypes.float, const_value=val, ctx=ctx)
+        return const_value, const_value.type
+
+    def visitString(self, ctx: LuaParser.StringContext):
+        print(ctx.getText())
+        str = ctx.getText()
+        const_value = LuaTypes.get_const_from_str(cls=LuaTypes, luatype=ir.ArrayType(LuaTypes.char, len(str)+1), const_value=str, ctx=ctx)
         return const_value, const_value.type
 
     def visitBinop(self, ctx: LuaParser.BinopContext):
