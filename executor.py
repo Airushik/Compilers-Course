@@ -60,4 +60,4 @@ if __name__ == '__main__':
     result = execute(sys.argv[1])
 
     if result is not None:
-        print(f"Program exits with code {result}")
+        print(f"\nProgram exits with code {result}")
