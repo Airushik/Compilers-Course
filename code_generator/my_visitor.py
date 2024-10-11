@@ -87,7 +87,7 @@ class LuaGenerator(LuaVisitor):
             if ctx.exp() is not None and len(ctx.exp()) > 0:
                 cond_val, _ = self.visit(ctx.exp()[0])
                 converted_cond_val = LuaTypes.cast_type(self.builder, target_type=LuaTypes.bool, value=cond_val, ctx=ctx)
-                self.builder.cbranch(converted_cond_val, end_block, loop_block)
+                self.builder.cbranch(converted_cond_val, loop_block, end_block)
             else:
                 self.builder.branch(loop_block)
 
@@ -196,12 +196,13 @@ class LuaGenerator(LuaVisitor):
             name_prefix = self.builder.block.name
 
             #содзаем временный билдер для временной функции, так как еще не знаем возвращаемый тип 
-            temp_function = ir.Function(ir.Module(name=func_name), ir.FunctionType(ir.IntType(32), [], var_arg=True), name=func_name)
+            temp_function = ir.Function(ir.Module(name=func_name), ir.FunctionType(ir.IntType(32), [ir.IntType(32) for i in vars], var_arg=True), name=func_name)
             self.builder = ir.IRBuilder(temp_function.append_basic_block(name=name_prefix + '.' + func_name))
             self.symbol_table.enter_scope()
 
             old_breack_block = self.break_block
             self.break_block = None
+            
             for arg_name, llvm_arg in zip(vars, temp_function.args):
                 self.symbol_table[arg_name] = self.builder.alloca(llvm_arg.type)
                 self.builder.store(llvm_arg, self.symbol_table[arg_name])
@@ -221,15 +222,17 @@ class LuaGenerator(LuaVisitor):
         
             ret_type = self.visit(funcblock)
             
-            real_function = ir.Function(self.module, ir.FunctionType(ret_type, [], var_arg=True), name=func_name)
+            real_function = ir.Function(self.module, ir.FunctionType(ret_type, [ir.IntType(32) for i in vars], var_arg=True), name=func_name)
             real_function.blocks = temp_function.blocks
 
-            self.symbol_table.set_global(func_name, real_function)
+            #self.symbol_table.set_global(func_name, real_function)
 
             self.break_block = old_breack_block
             self.builder = higher_builder
 
             self.symbol_table.exit_scope()
+            self.symbol_table[func_name] = real_function
+            
         
         #если вызов функции
         elif match_rule(ctx.children[0], LuaParser.RULE_functioncall):
@@ -412,15 +415,16 @@ class LuaGenerator(LuaVisitor):
                     else:
                         raise SemanticError(msg="Float doesn't support % operation", ctx=ctx)
                 elif op == 'and':
-                    if LuaTypes.is_int():
+                    if LuaTypes.is_int(type):
                         val = self.builder.mul(val, binop_converted)
                         type = val.type
                 elif op == 'or':
-                    if LuaTypes.is_int():
+                    if LuaTypes.is_int(type):
                         val = self.builder.add(val, binop_converted)
                         type = val.type
                 elif op in [ '<', '<=', '>', '>=', '==', '~=' ]:
-                    op.replace('!', '~')
+                    if op == '~=':
+                        op = '!='
                     if LuaTypes.is_int(type):
                         val = self.builder.icmp_signed(cmpop=op, lhs=val, rhs=binop_converted)
                         type = val.type
@@ -459,7 +463,7 @@ class LuaGenerator(LuaVisitor):
         return val, type
 
     def visitFunctioncall(self, ctx: LuaParser.FunctioncallContext):
-        function, _ = self.visit(ctx.varOrExp())
+        function, nam = self.visit(ctx.varOrExp())
         args = self.visit(ctx.nameAndArgs()[0])
 #        converted_args = [LuaTypes.cast_type(self.builder, value=arg[0], target_type=ir.IntType(32), ctx=ctx)
 #                                  for arg in args]
@@ -480,6 +484,7 @@ class LuaGenerator(LuaVisitor):
             else:
                 conv_arg = arg[0]
             converted_args.append(conv_arg)
+        
         func_val = self.builder.call(function, converted_args)
         return func_val, func_val.type
 

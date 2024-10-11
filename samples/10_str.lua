@@ -1,0 +1,2 @@
+a = 'Mya!'
+print(a)

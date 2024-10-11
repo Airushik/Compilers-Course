@@ -11,3 +11,5 @@ for i = 1,n do
   new_val = temp
   
 end
+
+print('%i', old_val)

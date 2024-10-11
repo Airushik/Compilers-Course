@@ -11,7 +11,7 @@ if __name__ == '__main__':
         input_file = sys.argv[1]
         print(f"Input file: {input_file}")
 
-        output_file = input_file[:-3] + ".ll"
+        output_file = input_file[:-3] + "ll"
         print(f"Output file: {output_file}")
 
         generate_ir(input_file, output_file)
