@@ -34,7 +34,7 @@ exp :  ('nil' | 'false' | 'true' | number | string | '...' | function | prefixex
 
 var: (NAME | '(' exp ')' varSuffix) varSuffix*;
 
-prefixexp: varOrExp nameAndArgs*;
+prefixexp: varOrExp nameAndArgs* | functioncall;
 
 functioncall: varOrExp nameAndArgs+;
 

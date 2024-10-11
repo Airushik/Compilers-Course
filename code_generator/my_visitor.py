@@ -43,23 +43,17 @@ class LuaGenerator(LuaVisitor):
         
         #если присвоение глобальной переменной
         if match_rule(ctx.children[0], LuaParser.RULE_varlist1):
-            # посещение правила varlist1
             lhs_ptr, name = self.visit(ctx.varlist1())
-            print('name', name, type(name))
             
-            # посещение правила explist
             explist = self.visit(ctx.explist1())
             rhs, rhs_type = explist[0]
-
-            if lhs_ptr is None or lhs_ptr.type.pointee != rhs_type: #some wierd stuff!!
+            print('#####', lhs_ptr, name)
+            if name is not None and (lhs_ptr is None or lhs_ptr.type.pointee != rhs_type): 
                 self.symbol_table[name] = self.builder.alloca(rhs_type)
                 lhs_ptr = self.symbol_table[name]
-                converted_rhs = rhs
-            else:
-                converted_rhs = LuaTypes.cast_type(self.builder, value=rhs, target_type=lhs_ptr.type.pointee, ctx=ctx)
-            
-            print('stat store', converted_rhs.type, 'lhs_ptr', lhs_ptr.type)
-            self.builder.store(value=converted_rhs, ptr=lhs_ptr)
+                
+            print('stat store', rhs.type, 'lhs_ptr', lhs_ptr.type)
+            self.builder.store(value=rhs, ptr=lhs_ptr)
             #return converted_rhs, None
         
         #если у нас if - else
@@ -309,13 +303,38 @@ class LuaGenerator(LuaVisitor):
         return var, name
     
     def visitVar(self, ctx: LuaParser.VarContext):
+        var_suff_start = 0
         if ctx.NAME() is not None:
             name = ctx.NAME().getText()
             var = None
             print(self.symbol_table.names())
             if name in self.symbol_table:
                 var = self.symbol_table[name]
-            return var, name
+        elif ctx.children[0].getText() == '(':
+            val, type = self.visit(ctx.exp())
+            if ctx.varSuffix() is not None and len(ctx.varSuffix()) > 0: 
+                var_suff_start += 1
+                varsuf_val, varsuf_type = self.visit(ctx.varSuffix()[0])
+                #to do
+            else:
+                raise SemanticError("Should be iterable in lhs")
+        print('?',self.symbol_table.names())
+        for i in range(var_suff_start, len(ctx.varSuffix())):
+            name = None
+            if var is None:
+                raise SemanticError('No such var!')
+            exp_val, _ = self.visit(ctx.varSuffix()[i])
+            print('maaaaaaaaaaaaaaaaaaaaaaaaaas', var)
+            var = self.builder.gep(var, [exp_val])
+    
+        return var, name
+    
+    def visitVarSuffix(self, ctx: LuaParser.VarSuffixContext):
+        if ctx.exp() is not None:
+            exp_val, exp_type = self.visit(ctx.exp())
+        else:
+            raise NotImplementedError('VarSuffix not implemenetd yet completly')
+        return exp_val, exp_type
     
     def visitExplist1(self, ctx: LuaParser.Explist1Context):
         print(len(ctx.exp()))
@@ -331,7 +350,7 @@ class LuaGenerator(LuaVisitor):
         if ctx.prefixexp() is not None:
             val, type = self.visit(ctx.prefixexp())
         elif ctx.tableconstructor() is not None:
-            pass   #to do
+            val, type = self.visit(ctx.tableconstructor())
         elif ctx.unop() is not None:
             unop = self.visit(ctx.unop())
             val, type = self.visit(ctx.exp(0))
@@ -342,7 +361,11 @@ class LuaGenerator(LuaVisitor):
                 val = self.builder.neg(val)
                 type = val.type
             elif unop == '#':
-                raise NotImplementedError("# is not implemented yet..")
+                print('!!!', val)
+                if hasattr(val, 'count'):
+                    val = ir.Constant(ir.IntType(32), val.count)
+                else:
+                    raise SemanticError('Exp has no len')
         elif ctx.number() is not None:
             val, type = self.visit(ctx.number())
         elif ctx.string() is not None:
@@ -428,9 +451,33 @@ class LuaGenerator(LuaVisitor):
                         type = val.type
             
         return val, type
+    
+    def visitTableconstructor(self, ctx: LuaParser.TableconstructorContext):
+        exp, type = self.visit(ctx.fieldlist())
+        return exp, type
+    
+    def visitFieldlist(self, ctx: LuaParser.FieldlistContext):
+        exps = ctx.field()
+
+        vals = list()
+        types = list()
+        for node in exps:
+            val, type = self.visit(node)
+            vals.append(val)
+            types.append(type)
+
+        #to do  
+        table = ir.Constant(ir.ArrayType(type, len(vals)), vals)
+        
+        return table, table.type
+    
+
 
     def visitPrefixexp(self, ctx: LuaParser.PrefixexpContext):
-        val, type = self.visit(ctx.varOrExp())
+        if ctx.varOrExp() is not None:  
+            val, type = self.visit(ctx.varOrExp())
+        elif ctx.functioncall() is not None:
+            val, type = self.visit(ctx.functioncall())
         return val, type
 
     def visitFunctioncall(self, ctx: LuaParser.FunctioncallContext):
@@ -438,7 +485,9 @@ class LuaGenerator(LuaVisitor):
         args = self.visit(ctx.nameAndArgs()[0])
         converted_args = [LuaTypes.cast_type(self.builder, value=arg[0], target_type=ir.IntType(32), ctx=ctx)
                                   for arg in args]
-        self.builder.call(function, converted_args)
+        print('!!!!!!!!!!',self.module, '!!!!!!!!')
+        func_val = self.builder.call(function, converted_args)
+        return func_val, func_val.type
 
     def visitNameAndArgs(self, ctx: LuaParser.NameAndArgsContext):
         args = self.visitArgs(ctx.args())
@@ -452,8 +501,7 @@ class LuaGenerator(LuaVisitor):
     def visitVarOrExp(self, ctx: LuaParser.VarOrExpContext):
         if ctx.var() is not None:
             var, _ = self.visit(ctx.var())
-            print('varorexp!!!!!!!!!!!!!!', var)
-            if hasattr(var, 'return_type'):
+            if hasattr(var, 'return_value'):
                 val = var
             else:
                 val = self.builder.load(var)
